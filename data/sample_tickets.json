@@ -1,0 +1,62 @@
+[
+  {
+    "customer_id": "C1001",
+    "order_id": "O90001",
+    "message": "我这个订单还没发货，已经等了三天了，不想要了，能不能直接退款？",
+    "expected_category": "refund"
+  },
+  {
+    "customer_id": "C1002",
+    "order_id": "O90002",
+    "message": "快递显示签收了但是我没收到，物流也没人联系我。",
+    "expected_category": "logistics"
+  },
+  {
+    "customer_id": "C1003",
+    "order_id": "O90003",
+    "message": "我登录不了账号，验证码一直收不到。",
+    "expected_category": "account"
+  },
+  {
+    "customer_id": "C1004",
+    "order_id": "O90004",
+    "message": "收到的商品破损了，里面配件也少了一包。",
+    "expected_category": "product"
+  },
+  {
+    "customer_id": "C1005",
+    "order_id": "O90005",
+    "message": "你们客服态度太差了，我要投诉，今天必须给我处理，不然我就差评曝光。",
+    "expected_category": "complaint"
+  },
+  {
+    "customer_id": "C1006",
+    "order_id": "O90006",
+    "message": "我要开发票，抬头和税号在哪里提交？公司需要报销。",
+    "expected_category": "invoice"
+  },
+  {
+    "customer_id": "C1007",
+    "order_id": "O90007",
+    "message": "企业采购的这一批货物流已经两天没有更新了，请优先帮忙查一下。",
+    "expected_category": "logistics"
+  },
+  {
+    "customer_id": "C1008",
+    "order_id": "O90008",
+    "message": "颜色和页面展示不一样，质量也不好，我想退货。",
+    "expected_category": "refund"
+  },
+  {
+    "customer_id": "C1009",
+    "order_id": "O90009",
+    "message": "会员账号绑定错了手机号，现在收不到验证码。",
+    "expected_category": "account"
+  },
+  {
+    "customer_id": "C1010",
+    "order_id": "O90010",
+    "message": "这个东西怎么使用？说明书没看懂。",
+    "expected_category": "product"
+  }
+]

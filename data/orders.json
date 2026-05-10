@@ -1,0 +1,37 @@
+[
+  {
+    "order_id": "O90001",
+    "status": "paid_not_shipped",
+    "amount": 299.0,
+    "paid_at": "2026-05-06 10:20:00",
+    "items": ["便携榨汁杯"]
+  },
+  {
+    "order_id": "O90002",
+    "status": "shipped",
+    "amount": 159.0,
+    "paid_at": "2026-05-05 14:11:00",
+    "items": ["无线充电器"]
+  },
+  {
+    "order_id": "O90005",
+    "status": "delivered",
+    "amount": 899.0,
+    "paid_at": "2026-05-01 09:01:00",
+    "items": ["智能空气净化器"]
+  },
+  {
+    "order_id": "O90007",
+    "status": "shipped",
+    "amount": 28600.0,
+    "paid_at": "2026-05-04 16:20:00",
+    "items": ["企业采购套装"]
+  },
+  {
+    "order_id": "O-DEMO",
+    "status": "shipped",
+    "amount": 199.0,
+    "paid_at": "2026-05-08 11:00:00",
+    "items": ["演示商品"]
+  }
+]

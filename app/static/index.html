@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Customer Support Agent</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f6f7f9;
+        --panel: #ffffff;
+        --ink: #19202a;
+        --muted: #657081;
+        --line: #dfe4ea;
+        --brand: #0f766e;
+        --brand-dark: #115e59;
+        --warn: #b45309;
+        --danger: #b91c1c;
+        --blue: #2563eb;
+        --soft: #eef7f6;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          "Microsoft YaHei", sans-serif;
+        letter-spacing: 0;
+      }
+
+      header {
+        border-bottom: 1px solid var(--line);
+        background: var(--panel);
+      }
+
+      .shell {
+        width: min(1180px, calc(100vw - 32px));
+        margin: 0 auto;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 68px;
+        gap: 16px;
+      }
+
+      .brand {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 22px;
+        line-height: 1.2;
+      }
+
+      .subtitle {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      main {
+        padding: 24px 0 40px;
+      }
+
+      .metrics {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+        margin-bottom: 18px;
+      }
+
+      .metric-card,
+      .panel,
+      .ticket-card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+      }
+
+      .metric-card {
+        padding: 16px;
+      }
+
+      .metric-label {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .metric-value {
+        margin-top: 8px;
+        font-size: 28px;
+        font-weight: 700;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(320px, 0.95fr) minmax(420px, 1.3fr);
+        gap: 18px;
+        align-items: start;
+      }
+
+      .panel {
+        padding: 18px;
+      }
+
+      .panel h2 {
+        margin: 0 0 14px;
+        font-size: 18px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 8px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      textarea,
+      input {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 11px 12px;
+        color: var(--ink);
+        background: #fff;
+        font: inherit;
+      }
+
+      textarea {
+        min-height: 168px;
+        resize: vertical;
+        line-height: 1.5;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+
+      .actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      button {
+        border: 0;
+        border-radius: 6px;
+        padding: 11px 14px;
+        color: #fff;
+        background: var(--brand);
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      button.secondary {
+        background: #344054;
+      }
+
+      button:hover {
+        background: var(--brand-dark);
+      }
+
+      button.secondary:hover {
+        background: #1f2937;
+      }
+
+      .result-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 14px;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        min-height: 28px;
+        border-radius: 999px;
+        padding: 4px 10px;
+        background: var(--soft);
+        color: var(--brand-dark);
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .pill.warn {
+        background: #fff7ed;
+        color: var(--warn);
+      }
+
+      .pill.danger {
+        background: #fef2f2;
+        color: var(--danger);
+      }
+
+      .field {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 12px;
+        background: #fbfcfd;
+      }
+
+      .field-title {
+        margin-bottom: 6px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .reply {
+        white-space: pre-wrap;
+        line-height: 1.6;
+      }
+
+      .edit-box {
+        min-height: 130px;
+        margin-top: 8px;
+      }
+
+      .hits {
+        display: grid;
+        gap: 10px;
+      }
+
+      .ticket-card {
+        padding: 12px;
+      }
+
+      .ticket-card strong {
+        display: block;
+        margin-bottom: 4px;
+      }
+
+      .ticket-card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .empty {
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      @media (max-width: 900px) {
+        .metrics,
+        .layout,
+        .result-grid,
+        .row {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="shell topbar">
+        <div class="brand">
+          <h1>客服工单处理 Agent</h1>
+          <div class="subtitle">自动分类、知识库检索、回复草稿、转人工判断与业务价值量化</div>
+        </div>
+        <span class="pill" id="health">API Ready</span>
+      </div>
+    </header>
+
+    <main class="shell">
+      <section class="metrics" id="metrics"></section>
+
+      <section class="layout">
+        <div class="panel">
+          <h2>工单分析</h2>
+          <div class="row">
+            <div>
+              <label for="customerId">客户 ID</label>
+              <input id="customerId" value="C-DEMO" />
+            </div>
+            <div>
+              <label for="orderId">订单 ID</label>
+              <input id="orderId" value="O-DEMO" />
+            </div>
+          </div>
+          <label for="message">客户问题</label>
+          <textarea id="message">快递显示签收了但是我没收到，物流也没人联系我，麻烦尽快处理。</textarea>
+          <div class="actions">
+            <button id="analyzeBtn">分析工单</button>
+            <button class="secondary" id="sampleBtn">换一个样例</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Agent 输出</h2>
+          <div id="result" class="empty">提交一条客户问题后，这里会展示分类、优先级、回复草稿和业务指标。</div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const samples = [
+        "我这个订单还没发货，已经等了三天了，不想要了，能不能直接退款？",
+        "你们客服态度太差了，我要投诉，今天必须给我处理，不然我就差评曝光。",
+        "我要开发票，抬头和税号在哪里提交？公司需要报销。",
+        "收到的商品破损了，里面配件也少了一包。",
+      ];
+
+      const categoryNames = {
+        refund: "退款售后",
+        logistics: "物流配送",
+        account: "账号问题",
+        product: "商品问题",
+        complaint: "投诉升级",
+        invoice: "发票报销",
+        other: "其他",
+      };
+
+      const priorityNames = {
+        low: "低",
+        normal: "普通",
+        high: "高",
+        urgent: "紧急",
+      };
+
+      let latestAnalysis = null;
+
+      function replySourceLabel(source, streaming = false) {
+        if (source === "structured_llm") return streaming ? "结构化 JSON 校验后输出" : "结构化 JSON 输出";
+        if (source === "llm") return streaming ? "LLM 流式生成" : "LLM 生成";
+        return streaming ? "模板流式输出" : "模板兜底";
+      }
+
+      async function loadDashboard() {
+        const res = await fetch("/api/dashboard");
+        const data = await res.json();
+        const summary = data.summary;
+        document.querySelector("#metrics").innerHTML = [
+          metric("样例准确率", `${Math.round(summary.classification_accuracy * 100)}%`),
+          metric("自动处理率", `${Math.round(summary.auto_handle_rate * 100)}%`),
+          metric("累计节省", `${summary.total_minutes_saved} 分钟`),
+          metric("高风险工单", `${summary.high_risk_tickets} 条`),
+        ].join("");
+      }
+
+      function metric(label, value) {
+        return `<div class="metric-card"><div class="metric-label">${label}</div><div class="metric-value">${value}</div></div>`;
+      }
+
+      async function analyze() {
+        const resultEl = document.querySelector("#result");
+        document.querySelector("#analyzeBtn").disabled = true;
+        document.querySelector("#analyzeBtn").textContent = "分析中...";
+        resultEl.innerHTML = '<div class="empty">正在分析工单，LLM 回复可能需要几秒钟。</div>';
+        const payload = {
+          customer_id: document.querySelector("#customerId").value,
+          order_id: document.querySelector("#orderId").value,
+          message: document.querySelector("#message").value,
+        };
+        try {
+          const res = await fetch("/api/tickets/analyze/stream", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          if (!res.ok) {
+            throw new Error(`接口返回 ${res.status}`);
+          }
+          await consumeAnalysisStream(res);
+          await loadDashboard();
+        } catch (error) {
+          resultEl.innerHTML = `<div class="empty">分析失败：${escapeHtml(error.message)}。请确认服务端正在运行，或稍后重试。</div>`;
+        } finally {
+          document.querySelector("#analyzeBtn").disabled = false;
+          document.querySelector("#analyzeBtn").textContent = "分析工单";
+        }
+      }
+
+      async function consumeAnalysisStream(response) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+        let replyText = "";
+        let finalAnalysis = null;
+
+        renderStreamShell();
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const frames = buffer.split("\n\n");
+          buffer = frames.pop() || "";
+
+          for (const frame of frames) {
+            const line = frame.split("\n").find((item) => item.startsWith("data: "));
+            if (!line) continue;
+            const event = JSON.parse(line.slice(6));
+            if (event.event === "classified") {
+              updateStreamStatus(event);
+            } else if (event.event === "retrieved") {
+              updateStreamHits(event.knowledge_hits || []);
+            } else if (event.event === "reply_source") {
+              document.querySelector("#streamSource").textContent = replySourceLabel(event.reply_source, true);
+            } else if (event.event === "reply_delta") {
+              replyText += event.delta || "";
+              document.querySelector("#streamReply").textContent = replyText;
+            } else if (event.event === "completed") {
+              finalAnalysis = event.analysis;
+            } else if (event.event === "error") {
+              throw new Error(event.message || "流式分析失败");
+            }
+          }
+        }
+
+        if (finalAnalysis) {
+          renderResult(finalAnalysis);
+        }
+      }
+
+      function renderStreamShell() {
+        document.querySelector("#result").innerHTML = `
+          <div class="field" style="margin-bottom: 14px">
+            <div class="field-title">分析进度</div>
+            <strong id="streamStatus">正在读取客户、订单、物流上下文...</strong>
+            <p class="empty" id="streamMeta"></p>
+          </div>
+          <div class="field" style="margin-bottom: 14px">
+            <div class="field-title">回复草稿 · <span id="streamSource">等待模型输出</span></div>
+            <div class="reply" id="streamReply"></div>
+          </div>
+          <div class="hits" id="streamHits"></div>
+        `;
+      }
+
+      function updateStreamStatus(event) {
+        const c = event.classification || {};
+        const context = event.external_context || {};
+        const customer = context.customer || {};
+        const order = context.order || {};
+        document.querySelector("#streamStatus").textContent =
+          `已分类：${categoryNames[c.category] || c.category || "-"} / ${priorityNames[c.priority] || c.priority || "-"}`;
+        document.querySelector("#streamMeta").textContent =
+          `客户：${customer.name || "-"}，订单：${order.status || "-"}，正在 RAG 检索知识库...`;
+      }
+
+      function updateStreamHits(hits) {
+        document.querySelector("#streamHits").innerHTML = hits.map((hit) => `
+          <div class="ticket-card">
+            <strong>${hit.title} · ${(hit.score * 100).toFixed(0)}%</strong>
+            <p>${hit.answer}</p>
+            <p>检索方式：${hit.retrieval_method === "rag_vector" ? "RAG 向量检索" : hit.retrieval_method}</p>
+          </div>
+        `).join("");
+      }
+
+      function renderResult(data) {
+        latestAnalysis = data;
+        const c = data.classification;
+        const riskClass = c.priority === "urgent" ? "danger" : c.priority === "high" ? "warn" : "";
+        const context = data.external_context || {};
+        const customer = context.customer || {};
+        const order = context.order || {};
+        const shipment = context.shipment || {};
+        const sync = data.business_sync || {};
+        const recordSync = data.analysis_record_sync || {};
+        const hits = data.knowledge_hits
+          .map(
+            (hit) =>
+              `<div class="ticket-card"><strong>${hit.title} · ${(hit.score * 100).toFixed(0)}%</strong><p>${hit.answer}</p><p>检索方式：${hit.retrieval_method === "rag_vector" ? "RAG 向量检索" : hit.retrieval_method}</p></div>`,
+          )
+          .join("");
+        document.querySelector("#result").innerHTML = `
+          <div class="result-grid">
+            <div class="field"><div class="field-title">分类</div><span class="pill">${categoryNames[c.category]}</span></div>
+            <div class="field"><div class="field-title">优先级</div><span class="pill ${riskClass}">${priorityNames[c.priority]}</span></div>
+            <div class="field"><div class="field-title">节省时间</div><strong>${data.estimated_minutes_saved} 分钟/单</strong></div>
+          </div>
+          <div class="result-grid">
+            <div class="field"><div class="field-title">CRM 客户</div><strong>${customer.name || "未匹配"}</strong><p class="empty">${customer.segment || ""} ${customer.risk_level || ""}</p></div>
+            <div class="field"><div class="field-title">订单状态</div><strong>${order.status || "未匹配"}</strong><p class="empty">${order.amount ? `¥${order.amount}` : ""} ${order.support_status ? `· ${order.support_status}` : ""}</p></div>
+            <div class="field"><div class="field-title">物流状态</div><strong>${shipment.status || "未匹配"}</strong><p class="empty">${shipment.latest_event || ""}</p></div>
+          </div>
+          <div class="field" style="margin-bottom: 14px">
+            <div class="field-title">处理方式</div>
+            <strong>${data.should_escalate ? "转人工复核" : "可自动处理"}</strong>
+            <p class="empty">${data.escalation_reason || "命中知识库且风险较低，可由客服快速确认或自动回复。"}</p>
+          </div>
+          <div class="field" style="margin-bottom: 14px">
+            <div class="field-title">业务后台同步</div>
+            <strong>${sync.success ? "已同步为已处理" : "未自动同步"}</strong>
+            <p class="empty">${sync.message || "暂无同步结果。"}</p>
+            <p class="empty">${recordSync.message || ""}</p>
+          </div>
+          <div class="field" style="margin-bottom: 14px">
+            <div class="field-title">回复草稿 · ${replySourceLabel(data.reply_source)}</div>
+            <div class="reply">${escapeHtml(data.reply_draft)}</div>
+            <textarea id="revisedReply" class="edit-box">${escapeHtml(data.reply_draft)}</textarea>
+            <div class="actions">
+              <button id="saveFeedbackBtn">保存人工修改</button>
+            </div>
+          </div>
+          <div class="hits">${hits || '<div class="empty">未匹配到知识库条目。</div>'}</div>
+        `;
+        document.querySelector("#saveFeedbackBtn").addEventListener("click", saveFeedback);
+      }
+
+      async function saveFeedback() {
+        if (!latestAnalysis) return;
+        const revised = document.querySelector("#revisedReply").value;
+        await fetch("/api/feedback/revisions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ticket_id: latestAnalysis.ticket_id,
+            original_reply: latestAnalysis.reply_draft,
+            revised_reply: revised,
+            category: latestAnalysis.classification.category,
+            accepted: revised.trim() === latestAnalysis.reply_draft.trim(),
+            editor: "demo-agent-reviewer",
+          }),
+        });
+        if (latestAnalysis.ticket_id) {
+          await fetch(`http://127.0.0.1:8011/api/admin/agent-analyses/${latestAnalysis.ticket_id}/revision`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              revised_reply: revised,
+              editor: "demo-agent-reviewer",
+              notes: "客服在 Agent 页面保存人工修改",
+            }),
+          });
+        }
+        const res = await fetch("/api/feedback/metrics");
+        const metrics = await res.json();
+        alert(`已保存。人工最终回复已同步到业务后台。累计反馈 ${metrics.total_feedback} 条，采纳率 ${Math.round(metrics.acceptance_rate * 100)}%。`);
+      }
+
+      function escapeHtml(value) {
+        return value.replace(/[&<>"']/g, (char) => {
+          return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[char];
+        });
+      }
+
+      document.querySelector("#analyzeBtn").addEventListener("click", analyze);
+      document.querySelector("#sampleBtn").addEventListener("click", () => {
+        const text = samples[Math.floor(Math.random() * samples.length)];
+        document.querySelector("#message").value = text;
+      });
+
+      loadDashboard().catch(() => {
+        document.querySelector("#health").textContent = "API Error";
+        document.querySelector("#health").className = "pill danger";
+      });
+    </script>
+  </body>
+</html>

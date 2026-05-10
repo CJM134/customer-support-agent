@@ -1,0 +1,34 @@
+[
+  {
+    "order_id": "O90002",
+    "carrier": "顺丰",
+    "tracking_no": "SF90002",
+    "status": "delivered_disputed",
+    "latest_event": "系统显示已签收，客户反馈未收到",
+    "last_updated_at": "2026-05-08 18:30:00"
+  },
+  {
+    "order_id": "O90005",
+    "carrier": "京东物流",
+    "tracking_no": "JD90005",
+    "status": "delivered",
+    "latest_event": "已签收",
+    "last_updated_at": "2026-05-03 15:22:00"
+  },
+  {
+    "order_id": "O90007",
+    "carrier": "德邦",
+    "tracking_no": "DB90007",
+    "status": "stalled",
+    "latest_event": "干线运输中，超过48小时未更新",
+    "last_updated_at": "2026-05-06 09:40:00"
+  },
+  {
+    "order_id": "O-DEMO",
+    "carrier": "顺丰",
+    "tracking_no": "SFDEMO",
+    "status": "delivered_disputed",
+    "latest_event": "系统显示已签收，客户反馈未收到",
+    "last_updated_at": "2026-05-08 20:10:00"
+  }
+]
