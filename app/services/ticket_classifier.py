@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 from collections import Counter
 
 from app.models.schemas import Category, ClassificationResult, Priority
+
+logger = logging.getLogger(__name__)
 
 
 CATEGORY_KEYWORDS: dict[Category, list[str]] = {
@@ -20,6 +23,7 @@ HIGH_VALUE_WORDS = ["大客户", "企业采购", "批量", "续费", "VIP", "会
 NEGATIVE_WORDS = ["生气", "失望", "差评", "垃圾", "太差", "不满", "欺骗"]
 
 
+##选出最高分类，匹配关键词，识别风险标记
 def classify_ticket(message: str) -> ClassificationResult:
     normalized = message.lower()
     scores: Counter[str] = Counter()
@@ -45,8 +49,13 @@ def classify_ticket(message: str) -> ClassificationResult:
     if any(word.lower() in normalized for word in NEGATIVE_WORDS):
         risk_flags.append("negative_sentiment")
 
+    ##判定优先级
     priority = decide_priority(category=category, risk_flags=risk_flags, confidence=confidence)
 
+    logger.debug(
+        "文本分类结果: category=%s priority=%s confidence=%.2f keywords=%s flags=%s",
+        category, priority, round(confidence, 2), matched, risk_flags,
+    )
     return ClassificationResult(
         category=category,
         priority=priority,

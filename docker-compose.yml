@@ -1,0 +1,54 @@
+services:
+  business-api:
+    build: .
+    image: customer-support-agent:latest
+    container_name: csa-business-api
+    command: >
+      sh -c "uv run uvicorn app.business_api:app --host 0.0.0.0 --port 8011 --reload"
+    ports:
+      - "8011:8011"
+    volumes:
+      - ./data:/app/data
+      - ./app:/app/app
+    environment:
+      - PYTHONUNBUFFERED=1
+    networks:
+      - csa-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import http.client; c=http.client.HTTPConnection('localhost',8011); c.request('GET','/admin'); assert c.getresponse().status==200"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  agent-api:
+    build: .
+    image: customer-support-agent:latest
+    container_name: csa-agent-api
+    command: >
+      sh -c "uv run uvicorn app.main:app --host 0.0.0.0 --port 8010 --reload"
+    ports:
+      - "8010:8010"
+    volumes:
+      - ./data:/app/data
+      - ./app:/app/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - CRM_API_BASE_URL=http://business-api:8011
+      - OMS_API_BASE_URL=http://business-api:8011
+      - LOGISTICS_API_BASE_URL=http://business-api:8011
+    depends_on:
+      business-api:
+        condition: service_healthy
+    networks:
+      - csa-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import http.client; c=http.client.HTTPConnection('localhost',8010); c.request('GET','/'); assert c.getresponse().status==200"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+networks:
+  csa-network:
+    driver: bridge

@@ -90,6 +90,7 @@ class ExternalSystemGateway:
 
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
+        ##封装请求，连接外部系统
         self.crm = IntegrationApiClient(
             self.settings.crm_api_base_url,
             self.settings.crm_api_token,
@@ -107,6 +108,7 @@ class ExternalSystemGateway:
         )
 
     def get_context(self, customer_id: str | None, order_id: str | None) -> ExternalContext:
+        logger.info("获取外部系统上下文: customer=%s order=%s", customer_id, order_id)
         customer_data = self.crm.get(
             self.settings.crm_customer_path_template,
             customer_id=customer_id,
@@ -115,6 +117,7 @@ class ExternalSystemGateway:
             self.settings.oms_order_path_template,
             order_id=order_id,
         )
+        ##货物信息
         shipment_data = self.logistics.get(
             self.settings.logistics_shipment_path_template,
             order_id=order_id,
@@ -148,6 +151,7 @@ class ExternalSystemGateway:
             order_id=order_id,
         )
         if data is None:
+            logger.warning("订单 %s 同步失败: API 未返回数据", order_id)
             return BusinessSyncResult(
                 attempted=True,
                 success=False,
@@ -155,6 +159,7 @@ class ExternalSystemGateway:
                 message="已尝试同步业务后台，但接口未返回成功。",
             )
 
+        logger.info("订单 %s 已同步业务后台，标记为已处理", order_id)
         return BusinessSyncResult(
             attempted=True,
             success=True,
@@ -163,6 +168,7 @@ class ExternalSystemGateway:
         )
 
     def save_agent_analysis(self, analysis: Any) -> BusinessSyncResult:
+        logger.info("保存 Agent 分析记录: ticket=%s", getattr(analysis, "ticket_id", None))
         if not self.oms.ready:
             return BusinessSyncResult(
                 attempted=False,
@@ -189,6 +195,7 @@ class ExternalSystemGateway:
         }
         data = self.oms.post("/api/admin/agent-analyses", payload)
         if data is None:
+            logger.warning("Agent 分析记录保存失败: ticket=%s", getattr(analysis, "ticket_id", None))
             return BusinessSyncResult(
                 attempted=True,
                 success=False,

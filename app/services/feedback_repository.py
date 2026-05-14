@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import sqlite3
 from collections import Counter
 from datetime import datetime, timezone
@@ -7,12 +8,15 @@ from datetime import datetime, timezone
 from app.core.config import get_settings
 from app.models.schemas import FeedbackMetrics, FeedbackRecord, FeedbackRequest
 
+logger = logging.getLogger(__name__)
+
 
 class FeedbackRepository:
     def __init__(self) -> None:
         self.db_path = get_settings().feedback_db_path
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
+        logger.info("反馈仓库就绪: %s", self.db_path)
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(str(self.db_path))
@@ -38,6 +42,7 @@ class FeedbackRepository:
             )
 
     def save(self, request: FeedbackRequest) -> FeedbackRecord:
+        logger.info("保存反馈: ticket=%s accepted=%s editor=%s", request.ticket_id, request.accepted, request.editor)
         created_at = datetime.now(timezone.utc).isoformat()
         with self._connect() as connection:
             cursor = connection.execute(
@@ -72,6 +77,7 @@ class FeedbackRepository:
         return [self._row_to_record(row) for row in rows]
 
     def metrics(self) -> FeedbackMetrics:
+        logger.debug("计算反馈指标")
         rows = self.list_recent(limit=1000)
         total = len(rows)
         if total == 0:

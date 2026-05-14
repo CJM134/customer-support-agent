@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+import time
 from typing import Any, Iterator, TypedDict
 from uuid import uuid4
 
@@ -21,6 +23,8 @@ from app.services.metrics import build_business_value, estimate_minutes_saved
 from app.services.reply_generator import generate_reply
 from app.services.structured_output import structured_output_generator
 from app.services.ticket_classifier import classify_ticket
+
+logger = logging.getLogger(__name__)
 
 
 class TicketState(TypedDict, total=False):
@@ -56,6 +60,9 @@ class CustomerSupportAgent:
         use_llm: bool = True,
         allow_side_effects: bool = True,
     ) -> TicketAnalysis:
+        ticket_label = f"{request.customer_id}/{request.order_id}"
+        logger.info("[%s] Agent 分析开始 (llm=%s side_effects=%s)", ticket_label, use_llm, allow_side_effects)
+        t0 = time.time()
         final_state = self.graph.invoke(
             {
                 "request": request,
@@ -63,19 +70,29 @@ class CustomerSupportAgent:
                 "allow_side_effects": allow_side_effects,
             }
         )
-        return final_state["analysis"]
+        elapsed = time.time() - t0
+        analysis = final_state["analysis"]
+        logger.info(
+            "[%s] Agent 分析完成 (%.2fs): category=%s escalate=%s source=%s",
+            ticket_label, elapsed,
+            analysis.classification.category, analysis.should_escalate, analysis.reply_source,
+        )
+        return analysis
 
     def stream_analyze(
         self,
         request: TicketAnalyzeRequest,
         allow_side_effects: bool = True,
     ) -> Iterator[dict[str, Any]]:
+        ticket_label = f"{request.customer_id}/{request.order_id}"
+        logger.info("[%s] 流式分析开始", ticket_label)
         state: TicketState = {
             "request": request,
             "use_llm": True,
             "allow_side_effects": allow_side_effects,
         }
 
+        ##yield: 分批次返回
         state.update(self._classify(state))
         yield {
             "event": "classified",
@@ -164,9 +181,18 @@ class CustomerSupportAgent:
 
     def _classify(self, state: TicketState) -> dict[str, Any]:
         request = state["request"]
+        ticket_label = f"{request.customer_id}/{request.order_id}"
+        logger.info("[%s] 节点: classify — 获取上下文并分类", ticket_label)
         context = get_external_gateway().get_context(request.customer_id, request.order_id)
         classification = classify_ticket(request.message)
+        ##上下文增强分类结果，将特殊用户提升优先级
         classification = self._enrich_classification_with_context(classification, context)
+        logger.info(
+            "[%s] 分类结果: category=%s priority=%s confidence=%.2f flags=%s processed=%s",
+            ticket_label, classification.category, classification.priority,
+            classification.confidence, classification.risk_flags,
+            bool(context.order and context.order.support_status == "processed"),
+        )
         return {
             "external_context": context,
             "classification": classification,
@@ -174,16 +200,22 @@ class CustomerSupportAgent:
         }
 
     def _retrieve(self, state: TicketState) -> dict[str, Any]:
+        request = state["request"]
+        ticket_label = f"{request.customer_id}/{request.order_id}"
         if state.get("already_processed"):
+            logger.info("[%s] 节点: retrieve — 已处理跳过检索", ticket_label)
             return {"knowledge_hits": []}
 
-        request = state["request"]
         classification = state["classification"]
         hits = get_knowledge_base().search(request.message, classification.category)
+        logger.info("[%s] 节点: retrieve — 检索到 %d 条知识, category=%s", ticket_label, len(hits), classification.category)
         return {"knowledge_hits": hits}
 
+    ##生成回复
     def _draft(self, state: TicketState) -> dict[str, Any]:
         request = state["request"]
+        ticket_label = f"{request.customer_id}/{request.order_id}"
+        logger.info("[%s] 节点: draft — 生成回复", ticket_label)
         if state.get("already_processed"):
             context = state.get("external_context")
             note = context.order.resolution_note if context and context.order else None
@@ -193,16 +225,18 @@ class CustomerSupportAgent:
                 f"处理说明：{note or '已完成客服处理。'}\n"
                 f"处理时间：{processed_at or '-'}"
             )
+            logger.info("[%s] 订单已处理，使用默认回复", ticket_label)
             return {
                 "reply_draft": content,
                 "reply_source": "template",
             }
 
         if state.get("use_llm", True):
+            ##结构化输出
             structured_state = self._draft_with_structured_output(state)
             if structured_state:
                 return structured_state
-
+            ##没有结构化输出，使用模板生成
             draft = reply_generator.draft(
                 message=request.message,
                 classification=state["classification"],
@@ -214,6 +248,7 @@ class CustomerSupportAgent:
         else:
             content = generate_reply(request.message, state["classification"], state["knowledge_hits"])
             source = "template"
+        logger.info("[%s] 草稿生成完成: source=%s length=%d", ticket_label, source, len(content))
         return {
             "reply_draft": content,
             "reply_source": source,
@@ -224,6 +259,7 @@ class CustomerSupportAgent:
             return None
 
         request = state["request"]
+        ticket_label = f"{request.customer_id}/{request.order_id}"
         result = structured_output_generator.decide(
             message=request.message,
             classification=state["classification"],
@@ -231,9 +267,11 @@ class CustomerSupportAgent:
             context=state.get("external_context"),
         )
         if not result.decision:
+            logger.info("[%s] 结构化输出不可用，回退到普通流程", ticket_label)
             return None
 
         decision = result.decision
+        logger.info("[%s] 结构化决策: category=%s priority=%s escalate=%s", ticket_label, decision.category, decision.priority, decision.should_escalate)
         return {
             "classification": self._merge_structured_classification(state["classification"], decision),
             "reply_draft": decision.reply.strip(),
@@ -243,6 +281,9 @@ class CustomerSupportAgent:
 
     def _evaluate(self, state: TicketState) -> dict[str, Any]:
         request = state["request"]
+        ticket_label = f"{request.customer_id}/{request.order_id}"
+        logger.info("[%s] 节点: evaluate — 转人工判断和业务同步", ticket_label)
+        ##ticket_label = f"{request.customer_id}/{request.order_id}"
         classification = state["classification"]
         hits = state["knowledge_hits"]
         context = state.get("external_context")
@@ -289,6 +330,12 @@ class CustomerSupportAgent:
         analysis.analysis_record_sync = self._save_analysis_record(
             analysis,
             allow_side_effects=state.get("allow_side_effects", True),
+        )
+        logger.info(
+            "[%s] 评估结果: escalate=%s reason=%s saved=%.1fmin mode=%s",
+            ticket_label, should_escalate, reason,
+            analysis.estimated_minutes_saved,
+            analysis.business_value.get("handling_mode", "?"),
         )
         return {"analysis": analysis}
 
@@ -384,6 +431,7 @@ class CustomerSupportAgent:
             }
         )
 
+    ##转人工条件
     def _should_escalate(
         self,
         classification: ClassificationResult,

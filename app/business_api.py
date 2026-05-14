@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -9,6 +10,11 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
+
+from app.core.logging_config import setup_logging
+
+setup_logging()
+logger = logging.getLogger(__name__)
 
 DB_PATH = Path(__file__).resolve().parents[1] / "data" / "business.db"
 FEEDBACK_DB_PATH = Path(__file__).resolve().parents[1] / "data" / "feedback.db"
@@ -87,6 +93,7 @@ def connect() -> sqlite3.Connection:
 
 
 def init_db() -> None:
+    logger.info("业务数据库初始化: %s", DB_PATH)
     with connect() as connection:
         connection.execute(
             """
@@ -192,9 +199,13 @@ def init_db() -> None:
             SHIPMENTS,
         )
 
+    count = connection.execute("SELECT COUNT(*) as cnt FROM customers").fetchone()["cnt"]
+    logger.info("数据库就绪: %d 个客户, %d 个订单, %d 个物流记录已初始化", count, len(ORDERS), len(SHIPMENTS))
+
 
 @app.on_event("startup")
 async def on_startup() -> None:
+    logger.info("业务后台启动中，监听端口 8011")
     init_db()
 
 
@@ -205,21 +216,25 @@ async def health() -> dict[str, str]:
 
 @app.get("/", response_class=HTMLResponse)
 async def admin_home() -> str:
+    logger.debug("返回管理后台首页")
     return ADMIN_HTML
 
 
 @app.get("/admin", response_class=HTMLResponse)
 async def admin_page() -> str:
+    logger.debug("返回管理后台页面")
     return ADMIN_HTML
 
 
 @app.get("/admin/escalations", response_class=HTMLResponse)
 async def escalation_page() -> str:
+    logger.debug("返回转人工队列页面")
     return ESCALATION_HTML
 
 
 @app.get("/api/admin/orders")
 async def list_admin_orders() -> dict[str, list[dict[str, Any]]]:
+    logger.info("查询所有管理订单")
     rows = fetch_all(
         """
         SELECT
@@ -315,11 +330,13 @@ async def list_admin_orders() -> dict[str, list[dict[str, Any]]]:
         (),
     )
     orders = [admin_order_to_dict(row) for row in rows]
+    logger.info("返回 %d 条管理订单", len(orders))
     return {"data": orders}
 
 
 @app.post("/api/admin/reset-demo")
 async def reset_demo_data() -> dict[str, Any]:
+    logger.warning("重置所有演示数据 — 清空调单分析和反馈记录")
     with connect() as connection:
         connection.execute("DELETE FROM ticket_analyses")
         connection.execute(
@@ -340,12 +357,17 @@ async def reset_demo_data() -> dict[str, Any]:
             [(customer_id, status, amount, paid_at, item_names, order_id) for order_id, customer_id, status, amount, paid_at, item_names in ORDERS],
         )
     reset_feedback_data()
+    logger.info("演示数据重置完成")
     return {"success": True, "message": "演示数据已重置"}
 
 
 @app.post("/api/admin/agent-analyses")
 async def save_agent_analysis(request: AgentAnalysisRequest) -> dict[str, Any]:
     created_at = datetime.now(timezone.utc).isoformat()
+    logger.info(
+        "保存 Agent 分析记录: ticket=%s category=%s priority=%s escalate=%s",
+        request.ticket_id, request.category, request.priority, request.should_escalate,
+    )
     with connect() as connection:
         cursor = connection.execute(
             """
@@ -391,6 +413,7 @@ async def save_agent_analysis(request: AgentAnalysisRequest) -> dict[str, Any]:
 
 @app.get("/api/admin/agent-analyses")
 async def list_agent_analyses(limit: int = 50) -> dict[str, list[dict[str, Any]]]:
+    logger.debug("查询 Agent 分析记录 (limit=%d)", limit)
     rows = fetch_all(
         """
         SELECT *
@@ -406,6 +429,7 @@ async def list_agent_analyses(limit: int = 50) -> dict[str, list[dict[str, Any]]
 @app.post("/api/admin/agent-analyses/{ticket_id}/revision")
 async def save_agent_analysis_revision(ticket_id: str, request: AgentAnalysisRevisionRequest) -> dict[str, Any]:
     reviewed_at = datetime.now(timezone.utc).isoformat()
+    logger.info("保存人工复核结果: ticket=%s editor=%s", ticket_id, request.editor)
     with connect() as connection:
         cursor = connection.execute(
             """
@@ -434,6 +458,7 @@ async def save_agent_analysis_revision(ticket_id: str, request: AgentAnalysisRev
 
 @app.get("/api/admin/escalations")
 async def list_escalations() -> dict[str, list[dict[str, Any]]]:
+    logger.debug("查询转人工队列")
     rows = fetch_all(
         """
         SELECT
@@ -450,17 +475,21 @@ async def list_escalations() -> dict[str, list[dict[str, Any]]]:
         """,
         (),
     )
-    return {"data": [escalation_to_dict(row) for row in rows]}
+    rows_list = [escalation_to_dict(row) for row in rows]
+    logger.info("返回 %d 条转人工工单", len(rows_list))
+    return {"data": rows_list}
 
 
 @app.post("/api/admin/orders/{order_id}/process")
 async def mark_order_processed(order_id: str, request: ProcessOrderRequest | None = None) -> dict[str, Any]:
     processed_at = datetime.now(timezone.utc).isoformat()
+    source = request.source if request else "manual"
     note = (
         request.resolution_note
         if request and request.resolution_note
         else "已核实订单与物流状态，客服已完成处理并同步客户。"
     )
+    logger.info("处理订单: order=%s source=%s", order_id, source)
     with connect() as connection:
         cursor = connection.execute(
             """
@@ -474,14 +503,17 @@ async def mark_order_processed(order_id: str, request: ProcessOrderRequest | Non
             (request.source if request else "manual", processed_at, note, order_id),
         )
         if cursor.rowcount == 0:
+            logger.warning("订单处理失败，未找到订单: %s", order_id)
             raise HTTPException(status_code=404, detail="Order not found")
 
     row = fetch_one("SELECT * FROM orders WHERE order_id = ?", (order_id,))
+    logger.info("订单 %s 已标记为已处理", order_id)
     return {"success": True, "data": dict(row) if row else None}
 
 
 @app.post("/api/admin/orders/{order_id}/reopen")
 async def reopen_order(order_id: str) -> dict[str, Any]:
+    logger.info("重新打开订单: order=%s", order_id)
     with connect() as connection:
         cursor = connection.execute(
             """
@@ -495,24 +527,30 @@ async def reopen_order(order_id: str) -> dict[str, Any]:
             (order_id,),
         )
         if cursor.rowcount == 0:
+            logger.warning("重新打开失败，未找到订单: %s", order_id)
             raise HTTPException(status_code=404, detail="Order not found")
 
     row = fetch_one("SELECT * FROM orders WHERE order_id = ?", (order_id,))
+    logger.info("订单 %s 已重新打开（恢复为待处理）", order_id)
     return {"success": True, "data": dict(row) if row else None}
 
 
 @app.get("/customers/{customer_id}")
 async def get_customer(customer_id: str) -> dict[str, Any]:
+    logger.info("查询客户: %s", customer_id)
     row = fetch_one("SELECT * FROM customers WHERE customer_id = ?", (customer_id,))
     if row is None:
+        logger.warning("客户不存在: %s", customer_id)
         raise HTTPException(status_code=404, detail="Customer not found")
     return {"data": dict(row)}
 
 
 @app.get("/orders/{order_id}")
 async def get_order(order_id: str) -> dict[str, Any]:
+    logger.info("查询订单: %s", order_id)
     row = fetch_one("SELECT * FROM orders WHERE order_id = ?", (order_id,))
     if row is None:
+        logger.warning("订单不存在: %s", order_id)
         raise HTTPException(status_code=404, detail="Order not found")
 
     order = dict(row)
@@ -522,8 +560,10 @@ async def get_order(order_id: str) -> dict[str, Any]:
 
 @app.get("/shipments/by-order/{order_id}")
 async def get_shipment_by_order(order_id: str) -> dict[str, Any]:
+    logger.info("查询订单物流: %s", order_id)
     row = fetch_one("SELECT * FROM shipments WHERE order_id = ?", (order_id,))
     if row is None:
+        logger.warning("物流信息不存在: %s", order_id)
         raise HTTPException(status_code=404, detail="Shipment not found")
     return {"data": dict(row)}
 

@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import logging
+
 from app.models.schemas import ClassificationResult, KnowledgeHit
+
+logger = logging.getLogger(__name__)
 
 
 TONE_BY_PRIORITY = {
@@ -12,6 +16,10 @@ TONE_BY_PRIORITY = {
 
 
 def generate_reply(message: str, classification: ClassificationResult, hits: list[KnowledgeHit]) -> str:
+    logger.debug(
+        "生成模板回复: category=%s priority=%s hits=%d",
+        classification.category, classification.priority, len(hits),
+    )
     opening = TONE_BY_PRIORITY[classification.priority]
     if hits:
         article = hits[0]

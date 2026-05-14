@@ -36,6 +36,7 @@ class LLMReplyGenerator:
         settings = get_settings()
         fallback = generate_reply(message, classification, hits)
         if not settings.llm_enabled or not settings.llm_api_key:
+            logger.debug("LLM 未配置，使用模板兜底")
             return ReplyDraft(fallback, "template")
 
         try:
@@ -67,7 +68,9 @@ class LLMReplyGenerator:
             )
             content = response.choices[0].message.content
             if not content:
+                logger.warning("LLM 返回空回复，使用模板兜底")
                 return ReplyDraft(fallback, "template")
+            logger.info("LLM 回复生成成功: length=%d model=%s", len(content), settings.llm_model)
             return ReplyDraft(content.strip(), "llm")
         except Exception:
             logger.exception("LLM reply generation failed; falling back to template reply")
@@ -83,6 +86,7 @@ class LLMReplyGenerator:
         settings = get_settings()
         fallback = generate_reply(message, classification, hits)
         if not settings.llm_enabled or not settings.llm_api_key:
+            logger.debug("LLM streaming not configured; using template fallback")
             yield ReplyStreamEvent(type="source", source="template")
             yield from stream_text_chunks(fallback)
             return

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import logging
 from collections import Counter
 
 from app.core.config import get_settings
 from app.models.schemas import EvaluationResult, TicketAnalysis
+
+logger = logging.getLogger(__name__)
 
 
 def estimate_minutes_saved(analysis: TicketAnalysis) -> float:
@@ -33,6 +36,7 @@ def build_business_value(analysis: TicketAnalysis) -> dict[str, float | int | st
 
 def evaluate_analyses(analyses: list[TicketAnalysis], expected_categories: list[str] | None = None) -> EvaluationResult:
     total = len(analyses)
+    logger.info("评估 %d 条分析结果", total)
     if total == 0:
         return EvaluationResult(
             total_tickets=0,

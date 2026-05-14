@@ -29,6 +29,9 @@ class Settings(BaseModel):
     logistics_api_base_url: str | None = None
     logistics_api_token: str | None = None
     logistics_shipment_path_template: str = "/shipments/by-order/{order_id}"
+    zhipu_embedding_api_key: str | None = None
+    zhipu_embedding_base_url: str = "https://open.bigmodel.cn/api/paas/v4"
+    zhipu_embedding_model: str = "embedding-2"
 
     @property
     def llm_ready(self) -> bool:
@@ -102,4 +105,7 @@ def get_settings() -> Settings:
             "LOGISTICS_SHIPMENT_PATH_TEMPLATE",
             "/shipments/by-order/{order_id}",
         ),
+        zhipu_embedding_api_key=os.getenv("ZHIPU_EMBEDDING_API_KEY"),
+        zhipu_embedding_base_url=os.getenv("ZHIPU_EMBEDDING_BASE_URL", "https://open.bigmodel.cn/api/paas/v4"),
+        zhipu_embedding_model=os.getenv("ZHIPU_EMBEDDING_MODEL", "embedding-2"),
     )

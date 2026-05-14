@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 import re
 from collections import Counter
@@ -10,6 +11,8 @@ from pathlib import Path
 
 from app.core.config import get_settings
 from app.models.schemas import Category, KnowledgeHit
+
+logger = logging.getLogger(__name__)
 
 VECTOR_DIMENSIONS = 384
 
@@ -51,17 +54,13 @@ def article_text(article: dict) -> str:
 
 
 class KnowledgeBase:
-    """RAG knowledge base with a local hashed-vector index.
-
-    This keeps the demo fully offline while preserving the same interface as a
-    real embedding store such as FAISS/Chroma. Swap `_embed` for model
-    embeddings later if needed.
-    """
+    """RAG knowledge base with ZhipuAI embedding (fallback to local hashed-vector)."""
 
     def __init__(self, path: Path):
         self.path = path
         self.articles = self._load_articles()
         self.idf = self._build_idf()
+        logger.info("知识库加载完成: %d 条规则, 来源: %s", len(self.articles), path)
         self.index = [
             {
                 "article": article,
@@ -88,6 +87,32 @@ class KnowledgeBase:
         }
 
     def _embed(self, text: str) -> dict[int, float]:
+        settings = get_settings()
+        if settings.zhipu_embedding_api_key:
+            try:
+                return self._zhipu_embed(text)
+            except Exception as exc:
+                logger.warning("智谱 Embedding 失败，回退到本地向量化: %s", exc)
+        return self._local_embed(text)
+
+    def _zhipu_embed(self, text: str) -> dict[int, float]:
+        from openai import OpenAI
+
+        settings = get_settings()
+        client = OpenAI(
+            api_key=settings.zhipu_embedding_api_key,
+            base_url=settings.zhipu_embedding_base_url,
+            timeout=settings.external_api_timeout_seconds,
+        )
+        response = client.embeddings.create(
+            model=settings.zhipu_embedding_model,
+            input=text,
+        )
+        vector: list[float] = response.data[0].embedding
+        return {idx: val for idx, val in enumerate(vector) if val != 0.0}
+
+    ##本地兜底向量化模型
+    def _local_embed(self, text: str) -> dict[int, float]:
         counts = Counter(embedding_terms(text))
         vector: dict[int, float] = {}
         for term, count in counts.items():
@@ -100,6 +125,7 @@ class KnowledgeBase:
         query_vector = self._embed(query)
         query_tokens = tokenize(query)
         scored: list[KnowledgeHit] = []
+        logger.debug("知识库检索: category=%s query_len=%d", category, len(query))
 
         for item in self.index:
             article = item["article"]
@@ -123,7 +149,12 @@ class KnowledgeBase:
                 )
             )
 
-        return sorted(scored, key=lambda item: item.score, reverse=True)[:limit]
+        top = sorted(scored, key=lambda item: item.score, reverse=True)[:limit]
+        if top:
+            logger.debug("知识库最高匹配: id=%s title=%s score=%.3f", top[0].id, top[0].title, top[0].score)
+        else:
+            logger.debug("知识库检索结果为空")
+        return top
 
 
 def normalize_sparse_vector(vector: dict[int, float]) -> dict[int, float]:

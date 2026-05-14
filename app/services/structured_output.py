@@ -30,6 +30,7 @@ class StructuredOutputGenerator:
     ) -> StructuredDecisionResult:
         settings = get_settings()
         if not settings.llm_enabled or not settings.llm_api_key:
+            logger.debug("结构化输出: LLM 未配置，跳过")
             return StructuredDecisionResult(decision=None, error="llm_not_ready")
 
         fallback = generate_reply(message, classification, hits)
@@ -52,6 +53,7 @@ class StructuredOutputGenerator:
             try:
                 return StructuredDecisionResult(decision=parse_structured_decision(content))
             except (json.JSONDecodeError, ValidationError, ValueError) as exc:
+                logger.debug("结构化输出: 需要修复重试: %s", exc)
                 repaired = self._complete(
                     client=client,
                     model=settings.llm_model,
