@@ -30,6 +30,7 @@ from app.services.metrics import evaluate_analyses
 router = APIRouter()
 RECENT_ANALYSES: list[TicketAnalysis] = []
 MAX_RECENT = 20
+_cached_dashboard: DashboardResult | None = None
 logger = logging.getLogger(__name__)
 
 
@@ -101,12 +102,23 @@ async def evaluate_sample_tickets() -> EvaluationResult:
         result.total_minutes_saved,
         result.total_tickets,
     )
+
+    ##刷新看板缓存
+    global _cached_dashboard
+    _cached_dashboard = DashboardResult(
+        summary=result,
+        recent_analyses=RECENT_ANALYSES[:5] or analyses[:5],
+    )
     return result
 
 
 @router.get("/dashboard", response_model=DashboardResult)
 async def get_dashboard() -> DashboardResult:
-    logger.info("构建看板数据")
+    global _cached_dashboard
+    if _cached_dashboard is not None:
+        return _cached_dashboard
+
+    logger.info("首次构建看板缓存")
     tickets = load_sample_tickets(get_settings().sample_tickets_path)
     analyses = [
         agent.analyze(
@@ -122,8 +134,9 @@ async def get_dashboard() -> DashboardResult:
     ]
     summary = evaluate_analyses(analyses, [item["expected_category"] for item in tickets])
     recent = RECENT_ANALYSES[:5] or analyses[:5]
-    logger.debug("看板返回 %d 条最近分析", len(recent))
-    return DashboardResult(summary=summary, recent_analyses=recent)
+    _cached_dashboard = DashboardResult(summary=summary, recent_analyses=recent)
+    logger.debug("看板缓存已构建: %d 条分析", len(recent))
+    return _cached_dashboard
 
 
 @router.get("/integrations/context", response_model=ExternalContext)

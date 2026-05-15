@@ -377,7 +377,6 @@
             throw new Error(`接口返回 ${res.status}`);
           }
           await consumeAnalysisStream(res);
-          await loadDashboard();
         } catch (error) {
           resultEl.innerHTML = `<div class="empty">分析失败：${escapeHtml(error.message)}。请确认服务端正在运行，或稍后重试。</div>`;
         } finally {
