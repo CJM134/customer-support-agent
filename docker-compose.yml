@@ -37,6 +37,11 @@ services:
       - CRM_API_BASE_URL=http://business-api:8011
       - OMS_API_BASE_URL=http://business-api:8011
       - LOGISTICS_API_BASE_URL=http://business-api:8011
+      - SUPPORT_AGENT_LLM_ENABLED=true
+      - SUPPORT_AGENT_LLM_API_KEY=sk-26e92b989c334cb691490ff274cb0cdb
+      - SUPPORT_AGENT_LLM_BASE_URL=https://api.deepseek.com/v1
+      - SUPPORT_AGENT_LLM_REPLY_MODEL=deepseek-chat
+      - ZHIPU_EMBEDDING_API_KEY=77549a3b05de4e2590e1963fbac4dd88.yEW0VkoNkGJBziZl
     depends_on:
       business-api:
         condition: service_healthy

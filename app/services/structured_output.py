@@ -30,7 +30,7 @@ class StructuredOutputGenerator:
     ) -> StructuredDecisionResult:
         settings = get_settings()
         if not settings.llm_enabled or not settings.llm_api_key:
-            logger.debug("结构化输出: LLM 未配置，跳过")
+            logger.info("结构化输出: LLM 未配置，跳过")
             return StructuredDecisionResult(decision=None, error="llm_not_ready")
 
         fallback = generate_reply(message, classification, hits)

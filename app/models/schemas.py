@@ -16,7 +16,7 @@ Category = Literal[
 ]
 
 Priority = Literal["low", "normal", "high", "urgent"]
-ReplySource = Literal["llm", "template", "structured_llm"]
+ReplySource = Literal["llm", "template", "structured_llm", "llm_rewritten"]
 
 
 class TicketAnalyzeRequest(BaseModel):

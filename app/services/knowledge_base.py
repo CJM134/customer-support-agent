@@ -45,10 +45,10 @@ def stable_bucket(term: str) -> int:
 def article_text(article: dict) -> str:
     return " ".join(
         [
-            article["title"],
-            article["answer"],
+            article.get("title", ""),
+            article.get("answer", ""),
             " ".join(article.get("keywords", [])),
-            article["category"],
+            article.get("category", ""),
         ]
     )
 
