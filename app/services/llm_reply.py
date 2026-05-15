@@ -47,17 +47,17 @@ class LLMReplyGenerator:
             logger.exception("LLM reply generation failed; falling back to template reply")
             return ReplyDraft(fallback, "template")
 
-        ##评估重试：评分低则重写一次
-        eval_content = self._evaluate_reply(client, settings, message, classification, context, content)
-        if eval_content is None:
+        ##规则评估：评分低则重写一次
+        eval_result = self._evaluate_reply(message, classification, content)
+        if eval_result is None:
             return ReplyDraft(content.strip(), "llm")
 
-        score, feedback = eval_content
-        logger.info("回复评估得分: %d/10", score)
+        score, feedback = eval_result
+        logger.info("规则评估得分: %d/10 | %s", score, feedback)
         if score >= 6:
             return ReplyDraft(content.strip(), "llm")
 
-        logger.info("回复评分 %d < 6，启动一次重写", score)
+        logger.info("规则评分 %d < 6，启动一次重写", score)
         try:
             rewritten = self._rewrite_with_evaluation(
                 client, settings, message, classification, hits, context, fallback,
@@ -126,53 +126,81 @@ class LLMReplyGenerator:
 
     def _evaluate_reply(
         self,
-        client,
-        settings,
         message: str,
         classification: ClassificationResult,
-        context: ExternalContext | None,
         reply: str,
     ) -> tuple[int, str] | None:
-        context_json = context.model_dump(mode="json") if context else {}
-        prompt = (
-            "你是一个客服回复质量评估器。评估以下回复并返回 JSON，"
-            "不要输出任何额外文本。\n\n"
-            "评估标准（各 1-10 分）：\n"
-            "1. 相关性：是否针对客户问题\n"
-            "2. 专业性：语气是否礼貌、负责\n"
-            "3. 可执行性：是否给出明确的处理方案或下一步\n"
-            "4. 准确性：是否有编造信息或错误承诺\n"
-            "5. 简洁性：是否简洁易懂\n\n"
-            "请综合给出总分（1-10），并列出最多 3 条改进建议。\n\n"
-            "JSON 格式：\n"
-            '{"score": <int>, "feedback": "<改进建议>"}\n\n'
-            f"客户问题：{message}\n"
-            f"分类：{classification.category}\n"
-            f"客户上下文：{json.dumps(context_json, ensure_ascii=False)[:300]}\n"
-            f"回复：{reply}"
-        )
-        try:
-            response = client.chat.completions.create(
-                model=settings.llm_model,
-                temperature=0,
-                max_tokens=200,
-                messages=[
-                    {"role": "system", "content": "你是一个回复质量评估器。只输出 JSON，不要输出解释。"},
-                    {"role": "user", "content": prompt},
-                ],
-            )
-            raw = response.choices[0].message.content
-            if not raw:
-                return None
-            import json as json_mod
+        """Rule-based reply quality evaluation. Returns (score, feedback) where score < 6 triggers a rewrite."""
+        score = 10
+        feedback_parts: list[str] = []
 
-            result = json_mod.loads(raw.strip())
-            score = int(result.get("score", 10))
-            feedback = result.get("feedback", "")
-            return score, feedback
-        except Exception:
-            logger.debug("回复评估失败，跳过重试", exc_info=True)
-            return None
+        # 1. 长度检查
+        if len(reply) < 10:
+            return 3, "回复过短，缺少实质内容"
+        if len(reply) > 400:
+            score -= 2
+            feedback_parts.append("回复过长，建议精简")
+
+        # 2. 空话套话检测 — 有"请稍等"类空话但无实质处理方案
+        placeholders = ["请稍等", "正在为您查询", "已记录", "耐心等待", "正在处理中"]
+        solution_words = [
+            "退款", "补发", "换货", "核实", "查询", "提交", "申请",
+            "联系", "处理", "解决", "安排", "协调", "跟进", "反馈",
+        ]
+        has_placeholder = any(p in reply for p in placeholders)
+        has_solution = any(s in reply for s in solution_words)
+        if has_placeholder and not has_solution:
+            score -= 4
+            feedback_parts.append("回复含空话但缺少实质处理方案")
+
+        # 3. 关键词覆盖 — 客户问题中的核心词在回复中出现比例
+        key_terms = self._extract_key_terms(message)
+        if key_terms:
+            covered = sum(1 for t in key_terms if t in reply)
+            ratio = covered / len(key_terms)
+            if ratio < 0.25:
+                score -= 4
+                feedback_parts.append("回复未针对客户具体问题")
+            elif ratio < 0.4:
+                score -= 2
+                feedback_parts.append("回复对客户问题的覆盖不够")
+
+        # 4. 投诉类需包含致歉
+        if classification.category == "complaint":
+            if "抱歉" not in reply and "歉意" not in reply and "道歉" not in reply:
+                score -= 2
+                feedback_parts.append("投诉类回复建议包含致歉")
+
+        # 5. 赔偿承诺检测 — 有赔偿承诺但知识库无支撑
+        promise_words = ["赔偿", "赔付", "补偿"]
+        if any(p in reply for p in promise_words):
+            score -= 2
+            feedback_parts.append("回复含赔偿承诺，请确认依据")
+
+        # 6. 可执行性 — 是否包含下一步动作指引
+        action_words = ["请您", "建议您", "您可以", "我们会", "我们将", "已为您", "正在为您", "请联系"]
+        if not any(a in reply for a in action_words):
+            score -= 2
+            feedback_parts.append("未给出明确下一步动作")
+
+        score = max(1, min(10, score))
+        feedback = "；".join(feedback_parts) if feedback_parts else "质量合格"
+        return score, feedback
+
+    @staticmethod
+    def _extract_key_terms(text: str) -> list[str]:
+        """提取客户消息中的核心关键词（2-8字中文短语，排除常见停用词）。"""
+        import re
+
+        terms = re.findall(r"[一-鿿]{2,}", text)
+        stop_words = {
+            "什么", "怎么", "这个", "那个", "一个", "可以", "没有", "不是",
+            "我们", "你们", "他们", "已经", "还是", "或者", "因为", "所以",
+            "但是", "如果", "虽然", "而且", "然后", "之后", "之前",
+            "就是", "非常", "比较", "很多", "一些", "这种", "这样",
+            "那么", "一下", "一直", "大家", "自己",
+        }
+        return [t for t in terms if t not in stop_words and len(t) <= 10]
 
     def _rewrite_with_evaluation(
         self,
